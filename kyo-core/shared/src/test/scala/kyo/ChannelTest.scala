@@ -511,17 +511,17 @@ class ChannelTest extends Test:
     }
 
     "Kyo computations" - {
-        "IO" in run {
+        "Sync" in run {
             for
-                channel <- Channel.init[Int < IO](2)
-                _       <- channel.put(IO(42))
+                channel <- Channel.init[Int < Sync](2)
+                _       <- channel.put(Sync(42))
                 result  <- channel.take.flatten
             yield assert(result == 42)
         }
         "AtomicBoolean" in run {
             for
                 flag    <- AtomicBoolean.init(false)
-                channel <- Channel.init[Int < IO](2)
+                channel <- Channel.init[Int < Sync](2)
                 _       <- channel.put(flag.set(true).andThen(42))
                 before  <- flag.get
                 result  <- channel.take.flatten
@@ -1167,7 +1167,7 @@ class ChannelTest extends Test:
 
     private def verifyRaceDrainWithClose(
         capacity: Int,
-        drain: Channel[Int] => Any < (Abort[Closed] & IO),
+        drain: Channel[Int] => Any < (Abort[Closed] & Sync),
         close: Channel[Int] => (Any < Async)
     ) =
         for
@@ -1176,7 +1176,7 @@ class ChannelTest extends Test:
             // Create a fiber that repeatedly puts and item and then checks to see if the channel
             // has been drained. If it has then it closes the channel and creates a new one.
             producer <- Async.run {
-                Loop(()) { _ =>
+                Loop.foreach:
                     for
                         c     <- ref.get
                         _     <- c.put(1)
@@ -1193,8 +1193,7 @@ class ChannelTest extends Test:
                                 yield ()
                             else Kyo.unit
                             end if
-                    yield Loop.continue(())
-                }
+                    yield Loop.continue
             }
             // Create a fiber that repeatedly drains the channel if it is not closed or empty.
             // If it is closed or empty (and is about to be closed) then repeat until the consumer
